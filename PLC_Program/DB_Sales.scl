@@ -1,0 +1,62 @@
+// ============================================================
+// DB_Sales.scl - 销售记录数据块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+
+DATA_BLOCK "DB_Sales"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+
+STRUCT
+    // === 商品销售统计 (1-6号) ===
+    ProductSales : Array[1..6] of Struct
+        Name : String[20];
+        QuantitySold : Int;         // 已售数量
+        Revenue : DInt;             // 销售额 (元)
+    End_Struct;
+    
+    // === 套餐销售统计 ===
+    ComboSales : Array[1..1] of Struct
+        Name : String[20];
+        QuantitySold : Int;
+        Revenue : DInt;
+    End_Struct;
+    
+    // === 交易记录 (循环缓冲区) ===
+    Transactions : Array[1..1000] of Struct
+        TransID : DInt;             // 交易序号
+        Timestamp : DTL;            // 时间戳
+        ProductIndex : Int;         // 商品编号 (0=套餐)
+        ComboIndex : Int;           // 套餐编号 (0=单商品)
+        Price : Int;                // 成交价
+        PaidAmount : Int;           // 投入金额
+        ChangeGiven : Int;          // 找零金额
+        TransType : Int;            // 1=正常购买 2=套餐购买 3=退款
+    End_Struct;
+    
+    // === 汇总统计 ===
+    TotalTransactions : DInt;       // 总交易笔数
+    TotalRevenue : DInt;            // 总销售额
+    TotalRefunds : DInt;            // 总退款金额
+    TotalRefundCount : Int;         // 退款次数
+    CurrentIndex : Int;             // 当前记录指针
+    
+    // === 管理员 ===
+    AdminPassword : String[10] := '123456';  // 管理员密码
+    AdminLoggedIn : Bool;           // 管理员登录状态
+
+END_STRUCT;
+
+BEGIN
+    ProductSales[1].Name := '可乐';
+    ProductSales[2].Name := '果汁';
+    ProductSales[3].Name := '奶茶';
+    ProductSales[4].Name := '矿泉水';
+    ProductSales[5].Name := '咖啡';
+    ProductSales[6].Name := '茶';
+    ComboSales[1].Name := '可乐套餐';
+    CurrentIndex := 1;
+    TotalTransactions := 0;
+    TotalRevenue := 0;
+    AdminPassword := '123456';
+END_DATA_BLOCK

@@ -1,0 +1,131 @@
+// ============================================================
+// FB_Change.scl - 找零与退款功能块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：计算找零金额（优先大面额），处理退款
+
+FUNCTION_BLOCK "FB_Change"
+
+VAR_INPUT
+    iTrigger : Bool;            // 触发找零
+    iRefund : Bool;             // 退款请求
+    iAmount : Int;              // 应找金额
+    iReset : Bool;              // 复位
+END_VAR
+
+VAR_OUTPUT
+    oChanging : Bool;           // 找零中
+    oChangeDone : Bool;         // 找零完成
+    oRefundDone : Bool;         // 退款完成
+    oChange10Yuan : Int;        // 找10元张数
+    oChange5Yuan : Int;         // 找5元张数
+    oChange2Yuan : Int;         // 找2元张数
+    oChange1Yuan : Int;         // 找1元硬币数
+    oTotalChangeOut : Int;      // 实际找零总额
+    oChangeMotor : Bool;        // 找零电机驱动
+    oChangeBoxEmpty : Bool;     // 找零钱箱空
+END_VAR
+
+VAR
+    _remaining : Int;
+    _change10 : Int;
+    _change5 : Int;
+    _change2 : Int;
+    _change1 : Int;
+    _changing : Bool;
+    _changeDone : Bool;
+    _refundDone : Bool;
+    _changeTimer : Ton;
+    _triggerOld : Bool;
+    _triggerRise : Bool;
+    _refundOld : Bool;
+    _refundRise : Bool;
+    _calcDone : Bool;
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 1. 边沿检测
+    // ============================================================
+    _triggerRise := iTrigger AND NOT _triggerOld;
+    _refundRise := iRefund AND NOT _refundOld;
+    _triggerOld := iTrigger;
+    _refundOld := iRefund;
+    
+    // ============================================================
+    // 2. 复位
+    // ============================================================
+    IF iReset THEN
+        _changing := FALSE;
+        _changeDone := FALSE;
+        _refundDone := FALSE;
+        _change10 := 0;
+        _change5 := 0;
+        _change2 := 0;
+        _change1 := 0;
+        _calcDone := FALSE;
+        _changeTimer(IN := FALSE);
+    END_IF;
+    
+    // ============================================================
+    // 3. 找零计算（优先大面额贪心算法）
+    // ============================================================
+    IF (_triggerRise OR _refundRise) AND iAmount > 0 AND NOT _changing THEN
+        _remaining := iAmount;
+        
+        // 10元
+        _change10 := _remaining / 10;
+        _remaining := _remaining - (_change10 * 10);
+        
+        // 5元
+        _change5 := _remaining / 5;
+        _remaining := _remaining - (_change5 * 5);
+        
+        // 2元
+        _change2 := _remaining / 2;
+        _remaining := _remaining - (_change2 * 2);
+        
+        // 1元
+        _change1 := _remaining;
+        
+        _changing := TRUE;
+        _changeDone := FALSE;
+        _calcDone := TRUE;
+    END_IF;
+    
+    // ============================================================
+    // 4. 找零执行（脉冲2秒驱动找零电机）
+    // ============================================================
+    _changeTimer(IN := _changing, PT := T#2S);
+    
+    IF _changeTimer.Q THEN
+        _changing := FALSE;
+        _changeDone := TRUE;
+        IF _refundRise OR NOT _triggerRise THEN
+            _refundDone := TRUE;
+        END_IF;
+        _changeTimer(IN := FALSE);
+    END_IF;
+    
+    // ============================================================
+    // 5. 钱箱空检测
+    // ============================================================
+    IF _calcDone AND (_change10 + _change5 + _change2 + _change1) > 0 
+       AND _change10 = 0 AND _change5 = 0 AND _change2 = 0 AND _change1 = 0 THEN
+        oChangeBoxEmpty := TRUE;
+    END_IF;
+    
+    // ============================================================
+    // 6. 输出
+    // ============================================================
+    oChanging := _changing;
+    oChangeDone := _changeDone;
+    oRefundDone := _refundDone;
+    oChange10Yuan := _change10;
+    oChange5Yuan := _change5;
+    oChange2Yuan := _change2;
+    oChange1Yuan := _change1;
+    oTotalChangeOut := (_change10 * 10) + (_change5 * 5) + (_change2 * 2) + _change1;
+    oChangeMotor := _changing;
+
+END_FUNCTION_BLOCK

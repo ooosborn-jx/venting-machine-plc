@@ -1,0 +1,94 @@
+// ============================================================
+// DB_Inventory.scl - 库存数据块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+
+DATA_BLOCK "DB_Inventory"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+
+STRUCT
+    // === 商品信息数组 (1-6号商品) ===
+    Products : Array[1..6] of Struct
+        Name : String[20];          // 商品名称
+        Price : Int;                // 单价 (元)
+        Stock : Int;                // 当前库存
+        MaxStock : Int := 99;       // 最大库存
+        InitStock : Int := 5;       // 初始库存
+        LowStockThreshold : Int := 2; // 缺货预警阈值
+        SoldOut : Bool;             // 售罄标志
+        LowStock : Bool;            // 低库存预警
+        DispenserOutput : Int;      // 对应出货电机地址 (字节偏移)
+        Enabled : Bool;             // 商品启用标志
+    End_Struct;
+    
+    // === 套餐配置 ===
+    Combos : Array[1..1] of Struct
+        Name : String[20];          // 套餐名称
+        Item1Index : Int;           // 商品1索引
+        Item2Index : Int;           // 商品2索引
+        OriginalPrice : Int;        // 原价
+        DiscountPrice : Int;        // 优惠价
+        Available : Bool;           // 套餐可用
+    End_Struct;
+    
+    // === 库存汇总 ===
+    TotalSoldOut : Int;             // 售罄商品数
+    TotalLowStock : Int;            // 低库存商品数
+    InventoryValid : Bool;          // 库存有效标志
+
+END_STRUCT;
+
+BEGIN
+    // 商品1: 可乐
+    Products[1].Name := '可乐';
+    Products[1].Price := 3;
+    Products[1].Stock := 5;
+    Products[1].Enabled := TRUE;
+    Products[1].DispenserOutput := 0;  // Q0.0
+    
+    // 商品2: 果汁
+    Products[2].Name := '果汁';
+    Products[2].Price := 4;
+    Products[2].Stock := 5;
+    Products[2].Enabled := TRUE;
+    Products[2].DispenserOutput := 1;  // Q0.1
+    
+    // 商品3: 奶茶
+    Products[3].Name := '奶茶';
+    Products[3].Price := 5;
+    Products[3].Stock := 5;
+    Products[3].Enabled := TRUE;
+    Products[3].DispenserOutput := 2;  // Q0.2
+    
+    // 商品4: 矿泉水
+    Products[4].Name := '矿泉水';
+    Products[4].Price := 2;
+    Products[4].Stock := 5;
+    Products[4].Enabled := TRUE;
+    Products[4].DispenserOutput := 3;  // Q0.3
+    
+    // 商品5: 咖啡
+    Products[5].Name := '咖啡';
+    Products[5].Price := 6;
+    Products[5].Stock := 5;
+    Products[5].Enabled := TRUE;
+    Products[5].DispenserOutput := 4;  // Q0.4
+    
+    // 商品6: 茶
+    Products[6].Name := '茶';
+    Products[6].Price := 3;
+    Products[6].Stock := 5;
+    Products[6].Enabled := TRUE;
+    Products[6].DispenserOutput := 5;  // Q0.5
+    
+    // 套餐1: 可乐+薯片
+    Combos[1].Name := '可乐套餐';
+    Combos[1].Item1Index := 1;
+    Combos[1].Item2Index := 4;
+    Combos[1].OriginalPrice := 8;
+    Combos[1].DiscountPrice := 7;
+    Combos[1].Available := TRUE;
+    
+    InventoryValid := TRUE;
+END_DATA_BLOCK

@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HMI_Tags.sdf - HMI 变量导出文件
+  自动售货机控制系统 - TIA Portal V18
+  
+  导入方法：
+  1. 在 TIA Portal 中打开 HMI 设备
+  2. 右键 "HMI tags" → "Import..."
+  3. 选择此 .sdf 文件
+-->
+<Configuration>
+  <Configuration.Export>
+    <Version>1.0</Version>
+    <Application>WinCC</Application>
+  </Configuration.Export>
+  <HmiTags>
+    
+    <!-- ============ 系统状态变量 ============ -->
+    <HmiTag Name="SysState" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBD0" Area="DataBlock"/>
+      <Comment>系统状态: 0待机 1投币 2选择 3出货 4取货 5找零 6完成 7退款 99故障</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="TotalAmount" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBD4" Area="DataBlock"/>
+      <Comment>当前累计投币金额</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="SelectedProduct" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBD8" Area="DataBlock"/>
+      <Comment>当前选择商品编号</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="ProductPrice" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBD12" Area="DataBlock"/>
+      <Comment>商品价格</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="ChangeAmount" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBD16" Area="DataBlock"/>
+      <Comment>找零金额</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="DisplayText" DataType="String">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBX20.0" Area="DataBlock"/>
+      <Comment>主显示文字</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="WelcomeText" DataType="String">
+      <PlcTag PlcName="S7-1200" Address="DB1.DBX72.0" Area="DataBlock"/>
+      <Comment>欢迎文字</Comment>
+    </HmiTag>
+    
+    <!-- ============ 库存变量 ============ -->
+    <HmiTag Name="Stock_Cola" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD0" Area="DataBlock"/>
+      <Comment>可乐库存</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Stock_Juice" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD40" Area="DataBlock"/>
+      <Comment>果汁库存</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Stock_MilkTea" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD80" Area="DataBlock"/>
+      <Comment>奶茶库存</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Stock_Water" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD120" Area="DataBlock"/>
+      <Comment>矿泉水库存</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Stock_Coffee" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD160" Area="DataBlock"/>
+      <Comment>咖啡库存</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Stock_Tea" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD200" Area="DataBlock"/>
+      <Comment>茶库存</Comment>
+    </HmiTag>
+    
+    <!-- ============ 价格变量 (管理员可修改) ============ -->
+    <HmiTag Name="Price_Cola" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD4" Area="DataBlock"/>
+      <Comment>可乐价格</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Price_Juice" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD44" Area="DataBlock"/>
+      <Comment>果汁价格</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Price_MilkTea" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD84" Area="DataBlock"/>
+      <Comment>奶茶价格</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Price_Water" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD124" Area="DataBlock"/>
+      <Comment>矿泉水价格</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Price_Coffee" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD164" Area="DataBlock"/>
+      <Comment>咖啡价格</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="Price_Tea" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBD204" Area="DataBlock"/>
+      <Comment>茶价格</Comment>
+    </HmiTag>
+    
+    <!-- ============ 售罄/低库存标志 ============ -->
+    <HmiTag Name="SoldOut_Cola" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBX16.0" Area="DataBlock"/>
+      <Comment>可乐售罄</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="SoldOut_Juice" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBX56.0" Area="DataBlock"/>
+      <Comment>果汁售罄</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="LowStock_Cola" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="DB2.DBX18.0" Area="DataBlock"/>
+      <Comment>可乐低库存</Comment>
+    </HmiTag>
+    
+    <!-- ============ 销售统计 ============ -->
+    <HmiTag Name="TotalTransactions" DataType="DInt">
+      <PlcTag PlcName="S7-1200" Address="DB3.DBD0" Area="DataBlock"/>
+      <Comment>总交易笔数</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="TotalRevenue" DataType="DInt">
+      <PlcTag PlcName="S7-1200" Address="DB3.DBD4" Area="DataBlock"/>
+      <Comment>总销售额</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="SoldQty_Cola" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB3.DBD8" Area="DataBlock"/>
+      <Comment>可乐已售数量</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="SoldQty_Juice" DataType="Int">
+      <PlcTag PlcName="S7-1200" Address="DB3.DBD20" Area="DataBlock"/>
+      <Comment>果汁已售数量</Comment>
+    </HmiTag>
+    
+    <!-- ============ 管理员 ============ -->
+    <HmiTag Name="AdminLoggedIn" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="DB3.DBX200.0" Area="DataBlock"/>
+      <Comment>管理员登录状态</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="AdminPassword" DataType="String">
+      <PlcTag PlcName="S7-1200" Address="DB3.DBX202.0" Area="DataBlock"/>
+      <Comment>管理员密码</Comment>
+    </HmiTag>
+    
+    <!-- ============ 报警 ============ -->
+    <HmiTag Name="AlarmActive" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M0.0" Area="Marker"/>
+      <Comment>报警激活</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="AlarmText" DataType="String">
+      <PlcTag PlcName="S7-1200" Address="M2.0" Area="Marker"/>
+      <Comment>报警文字</Comment>
+    </HmiTag>
+    
+    <!-- ============ 按钮输入 (HMI虚拟按钮 → PLC) ============ -->
+    <HmiTag Name="HMI_Btn1Yuan" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M10.0" Area="Marker"/>
+      <Comment>HMI 1元投币按钮</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="HMI_Btn2Yuan" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M10.1" Area="Marker"/>
+      <Comment>HMI 2元投币按钮</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="HMI_Btn5Yuan" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M10.2" Area="Marker"/>
+      <Comment>HMI 5元投币按钮</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="HMI_Btn10Yuan" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M10.3" Area="Marker"/>
+      <Comment>HMI 10元投币按钮</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="HMI_BtnCancel" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M10.4" Area="Marker"/>
+      <Comment>HMI 取消按钮</Comment>
+    </HmiTag>
+    
+    <HmiTag Name="HMI_BtnRestock" DataType="Bool">
+      <PlcTag PlcName="S7-1200" Address="M10.5" Area="Marker"/>
+      <Comment>HMI 一键补货按钮</Comment>
+    </HmiTag>
+    
+  </HmiTags>
+</Configuration>

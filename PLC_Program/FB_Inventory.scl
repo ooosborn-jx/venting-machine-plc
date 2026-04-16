@@ -1,0 +1,139 @@
+// ============================================================
+// FB_Inventory.scl - 库存管理功能块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：库存递减、缺货判断、补货操作
+
+FUNCTION_BLOCK "FB_Inventory"
+
+VAR_INPUT
+    iDispenseIndex : Int;       // 出货商品编号 (0=无操作)
+    iDispenseDone : Bool;       // 出货完成信号
+    iRefund : Bool;             // 退款信号（恢复库存）
+    iRefundProduct : Int;       // 退款商品编号
+    iRestockIndex : Int;        // 补货商品编号 (管理员操作)
+    iRestockAll : Bool;         // 一键补满
+    iReset : Bool;              // 复位
+END_VAR
+
+VAR_IN_OUT
+    ioStocks : Array[1..6] of Int;      // 库存数组
+    ioLowStock : Array[1..6] of Bool;   // 低库存标志
+    ioSoldOut : Array[1..6] of Bool;    // 售罄标志
+END_VAR
+
+VAR_OUTPUT
+    oTotalLowStock : Int;       // 低库存商品总数
+    oTotalSoldOut : Int;        // 售罄商品总数
+    oInventoryChanged : Bool;   // 库存变更信号
+    oDispenseDone : Bool;       // 处理完成
+END_VAR
+
+VAR
+    _dispenseDoneOld : Bool;
+    _dispenseDoneRise : Bool;
+    _refundOld : Bool;
+    _refundRise : Bool;
+    _restockAllOld : Bool;
+    _restockAllRise : Bool;
+    _processed : Bool;
+    _lowThreshold : Int := 2;   // 缺货预警阈值
+    _initStock : Int := 5;      // 初始库存
+    _i : Int;                   // 循环变量
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 1. 边沿检测
+    // ============================================================
+    _dispenseDoneRise := iDispenseDone AND NOT _dispenseDoneOld;
+    _dispenseDoneOld := iDispenseDone;
+    _refundRise := iRefund AND NOT _refundOld;
+    _refundOld := iRefund;
+    _restockAllRise := iRestockAll AND NOT _restockAllOld;
+    _restockAllOld := iRestockAll;
+    
+    oInventoryChanged := FALSE;
+    
+    // ============================================================
+    // 2. 复位
+    // ============================================================
+    IF iReset THEN
+        FOR _i := 1 TO 6 DO
+            ioStocks[_i] := _initStock;
+            ioLowStock[_i] := FALSE;
+            ioSoldOut[_i] := FALSE;
+        END_FOR;
+        _processed := FALSE;
+    END_IF;
+    
+    // ============================================================
+    // 3. 出货减库存
+    // ============================================================
+    IF _dispenseDoneRise AND iDispenseIndex >= 1 AND iDispenseIndex <= 6 THEN
+        IF ioStocks[iDispenseIndex] > 0 THEN
+            ioStocks[iDispenseIndex] := ioStocks[iDispenseIndex] - 1;
+            oInventoryChanged := TRUE;
+        END_IF;
+        _processed := TRUE;
+    END_IF;
+    
+    // ============================================================
+    // 4. 退款恢复库存
+    // ============================================================
+    IF _refundRise AND iRefundProduct >= 1 AND iRefundProduct <= 6 THEN
+        IF ioStocks[iRefundProduct] < 99 THEN
+            ioStocks[iRefundProduct] := ioStocks[iRefundProduct] + 1;
+            oInventoryChanged := TRUE;
+        END_IF;
+    END_IF;
+    
+    // ============================================================
+    // 5. 管理员补货
+    // ============================================================
+    // 单品补货
+    IF iRestockIndex >= 1 AND iRestockIndex <= 6 THEN
+        IF ioStocks[iRestockIndex] < _initStock THEN
+            ioStocks[iRestockIndex] := _initStock;
+            oInventoryChanged := TRUE;
+        END_IF;
+    END_IF;
+    
+    // 一键补满
+    IF _restockAllRise THEN
+        FOR _i := 1 TO 6 DO
+            ioStocks[_i] := _initStock;
+        END_FOR;
+        oInventoryChanged := TRUE;
+    END_IF;
+    
+    // ============================================================
+    // 6. 更新预警状态
+    // ============================================================
+    oTotalLowStock := 0;
+    oTotalSoldOut := 0;
+    
+    FOR _i := 1 TO 6 DO
+        // 售罄判断
+        IF ioStocks[_i] <= 0 THEN
+            ioSoldOut[_i] := TRUE;
+            ioLowStock[_i] := FALSE;
+            oTotalSoldOut := oTotalSoldOut + 1;
+        // 低库存预警
+        ELSIF ioStocks[_i] <= _lowThreshold THEN
+            ioSoldOut[_i] := FALSE;
+            ioLowStock[_i] := TRUE;
+            oTotalLowStock := oTotalLowStock + 1;
+        // 正常
+        ELSE
+            ioSoldOut[_i] := FALSE;
+            ioLowStock[_i] := FALSE;
+        END_IF;
+    END_FOR;
+    
+    // ============================================================
+    // 7. 输出
+    // ============================================================
+    oDispenseDone := _processed;
+
+END_FUNCTION_BLOCK

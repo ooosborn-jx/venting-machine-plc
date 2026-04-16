@@ -1,0 +1,126 @@
+// ============================================================
+// FC_Display.scl - 显示控制功能
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：根据系统状态生成HMI显示文字和状态指示
+
+FUNCTION "FC_Display" : Void
+
+VAR_INPUT
+    iSysState : Int;            // 系统状态
+    iTotalAmount : Int;         // 当前累计金额
+    iSelectedProduct : Int;     // 选择商品编号
+    iProductPrice : Int;        // 商品价格
+    iDispensing : Bool;         // 出货中
+    iDispensingDone : Bool;     // 出货完成
+    iChanging : Bool;           // 找零中
+    iChangeDone : Bool;         // 找零完成
+    iRefundDone : Bool;         // 退款完成
+    iInsufficientFund : Bool;   // 余额不足
+    iSoldOut : Bool;            // 售罄
+    iAlarmActive : Bool;        // 报警激活
+    iAlarmText : String[50];    // 报警文字
+END_VAR
+
+VAR_IN_OUT
+    ioDisplayText : String[50]; // 显示文字输出
+    ioStatusLED : Bool;         // 状态指示灯
+    ioWelcomeText : String[30]; // 欢迎文字
+END_VAR
+
+VAR
+    _blinkTimer : Ton;
+    _blinkState : Bool;
+    _amountStr : String[10];
+    _productNames : Array[1..6] of String[10] := ['可乐','果汁','奶茶','矿泉水','咖啡','茶'];
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 1. 闪烁定时器 (低库存/售罄时商品图标闪烁)
+    // ============================================================
+    _blinkTimer(IN := NOT _blinkTimer.Q, PT := T#500MS);
+    _blinkState := _blinkTimer.Q;
+    
+    // ============================================================
+    // 2. 根据状态生成显示文字
+    // ============================================================
+    CASE iSysState OF
+        // 待机状态
+        0: 
+            ioDisplayText := '欢迎光临，请投币';
+            ioWelcomeText := '欢迎光临';
+            ioStatusLED := TRUE;
+        
+        // 投币中
+        1:
+            ioDisplayText := '已投金额: ' + INT_TO_STRING(iTotalAmount) + '元 - 请选择商品';
+            ioWelcomeText := '请投币';
+            ioStatusLED := _blinkState;
+        
+        // 选择中
+        2:
+            IF iInsufficientFund THEN
+                ioDisplayText := '余额不足！还差' + INT_TO_STRING(iProductPrice - iTotalAmount) + '元';
+                ioWelcomeText := '余额不足';
+                ioStatusLED := _blinkState;
+            ELSIF iSoldOut THEN
+                ioDisplayText := '该商品已售罄，请选择其他';
+                ioWelcomeText := '已售罄';
+                ioStatusLED := _blinkState;
+            ELSE
+                ioDisplayText := '已选: ' + _productNames[iSelectedProduct] 
+                               + ' ' + INT_TO_STRING(iProductPrice) + '元 - 按确认购买';
+                ioStatusLED := TRUE;
+            END_IF;
+        
+        // 出货中
+        3:
+            ioDisplayText := '出货中，请稍候...';
+            ioWelcomeText := '出货中';
+            ioStatusLED := _blinkState;
+        
+        // 出货完成
+        4:
+            ioDisplayText := '请取走您的商品';
+            ioWelcomeText := '请取商品';
+            ioStatusLED := TRUE;
+        
+        // 找零中
+        5:
+            ioDisplayText := '找零中...';
+            ioWelcomeText := '找零中';
+            ioStatusLED := _blinkState;
+        
+        // 找零完成
+        6:
+            ioDisplayText := '找零完成，欢迎再来！';
+            ioWelcomeText := '谢谢惠顾';
+            ioStatusLED := TRUE;
+        
+        // 退款
+        7:
+            ioDisplayText := '正在退款，请稍候...';
+            ioWelcomeText := '退款中';
+            ioStatusLED := _blinkState;
+        
+        // 退款完成
+        8:
+            ioDisplayText := '退款完成，欢迎再来！';
+            ioWelcomeText := '谢谢惠顾';
+            ioStatusLED := TRUE;
+        
+        // 报警状态
+        99:
+            ioDisplayText := '故障: ' + iAlarmText;
+            ioWelcomeText := '设备故障';
+            ioStatusLED := _blinkState;
+        
+        // 默认
+        ELSE
+            ioDisplayText := '欢迎光临';
+            ioWelcomeText := '欢迎光临';
+            ioStatusLED := TRUE;
+    END_CASE;
+
+END_FUNCTION

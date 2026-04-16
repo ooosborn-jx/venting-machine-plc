@@ -1,0 +1,242 @@
+// ============================================================
+// FB_ProductSelect.scl - 商品选择与出货功能块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：处理6种商品选择，判断余额与库存，触发出货
+
+FUNCTION_BLOCK "FB_ProductSelect"
+
+VAR_INPUT
+    iBtnProd1 : Bool;           // 商品1按钮 (可乐)
+    iBtnProd2 : Bool;           // 商品2按钮 (果汁)
+    iBtnProd3 : Bool;           // 商品3按钮 (奶茶)
+    iBtnProd4 : Bool;           // 商品4按钮 (矿泉水)
+    iBtnProd5 : Bool;           // 商品5按钮 (咖啡)
+    iBtnProd6 : Bool;           // 商品6按钮 (茶)
+    iBtnConfirm : Bool;         // 确认出货按钮
+    iTotalAmount : Int;         // 当前累计金额
+    iReset : Bool;              // 复位信号
+    
+    // 库存输入 (来自 DB_Inventory)
+    iStock1 : Int;
+    iStock2 : Int;
+    iStock3 : Int;
+    iStock4 : Int;
+    iStock5 : Int;
+    iStock6 : Int;
+    
+    // 价格输入 (来自 DB_Inventory)
+    iPrice1 : Int;
+    iPrice2 : Int;
+    iPrice3 : Int;
+    iPrice4 : Int;
+    iPrice5 : Int;
+    iPrice6 : Int;
+    
+    iEnabled1 : Bool;
+    iEnabled2 : Bool;
+    iEnabled3 : Bool;
+    iEnabled4 : Bool;
+    iEnabled5 : Bool;
+    iEnabled6 : Bool;
+END_VAR
+
+VAR_OUTPUT
+    oSelectedProduct : Int;     // 选择的商品编号 (1-6, 0=无)
+    oProductPrice : Int;        // 选中商品价格
+    oDispensing : Bool;         // 出货中
+    oDispensingDone : Bool;     // 出货完成
+    oDispenseIndex : Int;       // 正在出货的商品编号
+    oInsufficientFund : Bool;   // 余额不足
+    oSoldOut : Bool;            // 售罄
+    oChangeAmount : Int;        // 应找零金额
+    oDispenseOutput : Int;      // 出货电机输出字节掩码
+    oSelectionValid : Bool;     // 选择有效
+END_VAR
+
+VAR
+    // 内部边沿检测
+    _btn1Old : Bool;
+    _btn2Old : Bool;
+    _btn3Old : Bool;
+    _btn4Old : Bool;
+    _btn5Old : Bool;
+    _btn6Old : Bool;
+    _btnConfirmOld : Bool;
+    _btn1Rise : Bool;
+    _btn2Rise : Bool;
+    _btn3Rise : Bool;
+    _btn4Rise : Bool;
+    _btn5Rise : Bool;
+    _btn6Rise : Bool;
+    _confirmRise : Bool;
+    
+    // 内部状态
+    _selectedProduct : Int;
+    _productPrice : Int;
+    _dispensing : Bool;
+    _dispenseTimer : Ton;
+    _dispenseDone : Bool;
+    _selectionMade : Bool;
+    _stocks : Array[1..6] of Int;
+    _prices : Array[1..6] of Int;
+    _enabled : Array[1..6] of Bool;
+    _insufficient : Bool;
+    _soldOut : Bool;
+    _dispenseMask : Int;
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 1. 按钮边沿检测
+    // ============================================================
+    _btn1Rise := iBtnProd1 AND NOT _btn1Old;
+    _btn2Rise := iBtnProd2 AND NOT _btn2Old;
+    _btn3Rise := iBtnProd3 AND NOT _btn3Old;
+    _btn4Rise := iBtnProd4 AND NOT _btn4Old;
+    _btn5Rise := iBtnProd5 AND NOT _btn5Old;
+    _btn6Rise := iBtnProd6 AND NOT _btn6Old;
+    _confirmRise := iBtnConfirm AND NOT _btnConfirmOld;
+    
+    _btn1Old := iBtnProd1;
+    _btn2Old := iBtnProd2;
+    _btn3Old := iBtnProd3;
+    _btn4Old := iBtnProd4;
+    _btn5Old := iBtnProd5;
+    _btn6Old := iBtnProd6;
+    _btnConfirmOld := iBtnConfirm;
+    
+    // ============================================================
+    // 2. 加载库存与价格
+    // ============================================================
+    _stocks[1] := iStock1;  _stocks[2] := iStock2;
+    _stocks[3] := iStock3;  _stocks[4] := iStock4;
+    _stocks[5] := iStock5;  _stocks[6] := iStock6;
+    _prices[1] := iPrice1;  _prices[2] := iPrice2;
+    _prices[3] := iPrice3;  _prices[4] := iPrice4;
+    _prices[5] := iPrice5;  _prices[6] := iPrice6;
+    _enabled[1] := iEnabled1;  _enabled[2] := iEnabled2;
+    _enabled[3] := iEnabled3;  _enabled[4] := iEnabled4;
+    _enabled[5] := iEnabled5;  _enabled[6] := iEnabled6;
+    
+    // ============================================================
+    // 3. 复位处理
+    // ============================================================
+    IF iReset THEN
+        _selectedProduct := 0;
+        _productPrice := 0;
+        _dispensing := FALSE;
+        _dispenseDone := FALSE;
+        _selectionMade := FALSE;
+        _insufficient := FALSE;
+        _soldOut := FALSE;
+        _dispenseMask := 0;
+        _dispenseTimer(IN := FALSE);
+    END_IF;
+    
+    // ============================================================
+    // 4. 商品选择（仅在非出货状态下）
+    // ============================================================
+    IF NOT _dispensing AND NOT _dispenseDone THEN
+        IF _btn1Rise AND _enabled[1] THEN
+            _selectedProduct := 1;
+            _productPrice := _prices[1];
+            _selectionMade := TRUE;
+        ELSIF _btn2Rise AND _enabled[2] THEN
+            _selectedProduct := 2;
+            _productPrice := _prices[2];
+            _selectionMade := TRUE;
+        ELSIF _btn3Rise AND _enabled[3] THEN
+            _selectedProduct := 3;
+            _productPrice := _prices[3];
+            _selectionMade := TRUE;
+        ELSIF _btn4Rise AND _enabled[4] THEN
+            _selectedProduct := 4;
+            _productPrice := _prices[4];
+            _selectionMade := TRUE;
+        ELSIF _btn5Rise AND _enabled[5] THEN
+            _selectedProduct := 5;
+            _productPrice := _prices[5];
+            _selectionMade := TRUE;
+        ELSIF _btn6Rise AND _enabled[6] THEN
+            _selectedProduct := 6;
+            _productPrice := _prices[6];
+            _selectionMade := TRUE;
+        END_IF;
+    END_IF;
+    
+    // ============================================================
+    // 5. 确认出货逻辑
+    // ============================================================
+    _insufficient := FALSE;
+    _soldOut := FALSE;
+    
+    IF _confirmRise AND _selectionMade AND NOT _dispensing THEN
+        IF _selectedProduct >= 1 AND _selectedProduct <= 6 THEN
+            // 检查库存
+            IF _stocks[_selectedProduct] <= 0 THEN
+                _soldOut := TRUE;
+                _selectionMade := FALSE;
+                _selectedProduct := 0;
+            // 检查余额
+            ELSIF iTotalAmount < _productPrice THEN
+                _insufficient := TRUE;
+            // 条件满足，开始出货
+            ELSE
+                _dispensing := TRUE;
+                _dispenseDone := FALSE;
+                _dispenseMask := SHL(IN := 1, N := _stocks[_selectedProduct]);  // 修正：使用商品索引
+                // 使用位移计算输出掩码
+                CASE _selectedProduct OF
+                    1: _dispenseMask := 16#01;  // Q0.0
+                    2: _dispenseMask := 16#02;  // Q0.1
+                    3: _dispenseMask := 16#04;  // Q0.2
+                    4: _dispenseMask := 16#08;  // Q0.3
+                    5: _dispenseMask := 16#10;  // Q0.4
+                    6: _dispenseMask := 16#20;  // Q0.5
+                END_CASE;
+            END_IF;
+        END_IF;
+    END_IF;
+    
+    // ============================================================
+    // 6. 出货定时器 (2秒脉冲)
+    // ============================================================
+    _dispenseTimer(IN := _dispensing, PT := T#2S);
+    
+    IF _dispenseTimer.Q THEN
+        _dispensing := FALSE;
+        _dispenseDone := TRUE;
+        _dispenseTimer(IN := FALSE);
+        _dispenseMask := 0;
+        // 计算找零
+        // 找零在 OB1 中由 FB_Change 处理
+    END_IF;
+    
+    // ============================================================
+    // 7. 输出
+    // ============================================================
+    oSelectedProduct := _selectedProduct;
+    oProductPrice := _productPrice;
+    oDispensing := _dispensing;
+    oDispensingDone := _dispenseDone;
+    oDispenseIndex := _selectedProduct;
+    oInsufficientFund := _insufficient;
+    oSoldOut := _soldOut;
+    oSelectionValid := _selectionMade;
+    
+    // 找零金额 = 累计金额 - 商品价格
+    IF _dispenseDone THEN
+        oChangeAmount := iTotalAmount - _productPrice;
+    ELSE
+        oChangeAmount := 0;
+    END_IF;
+    
+    // 出货电机输出
+    IF _dispensing THEN
+        oDispenseOutput := _dispenseMask;
+    ELSE
+        oDispenseOutput := 0;
+    END_IF;
+
+END_FUNCTION_BLOCK

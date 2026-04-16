@@ -1,0 +1,406 @@
+// ============================================================
+// OB1_Main.scl - 主程序循环 (OB1)
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：系统主控，调用各功能块，管理状态机
+
+ORGANIZATION_BLOCK "OB1"
+
+VAR
+    // === 功能块实例 ===
+    Payment : "FB_Payment";
+    ProductSelect : "FB_ProductSelect";
+    ChangeCalc : "FB_Change";
+    InventoryMgr : "FB_Inventory";
+    AlarmMgr : "FB_Alarm";
+    
+    // === I/O 映射 ===
+    // 输入按钮
+    Btn1Yuan : Bool;        // I0.0
+    Btn2Yuan : Bool;        // I0.1
+    Btn5Yuan : Bool;        // I0.2
+    Btn10Yuan : Bool;       // I0.3
+    BtnProd1 : Bool;        // I0.4 - 可乐
+    BtnProd2 : Bool;        // I0.5 - 果汁
+    BtnProd3 : Bool;        // I0.6 - 奶茶
+    BtnProd4 : Bool;        // I0.7 - 矿泉水
+    BtnProd5 : Bool;        // I1.0 - 咖啡
+    BtnProd6 : Bool;        // I1.1 - 茶
+    BtnCancel : Bool;       // I1.2
+    BtnCombo : Bool;        // I1.3
+    BtnConfirm : Bool;      // I1.4
+    
+    // 输出
+    MotorCola : Bool;       // Q0.0
+    MotorJuice : Bool;      // Q0.1
+    MotorTea : Bool;        // Q0.2
+    MotorWater : Bool;      // Q0.3
+    MotorCoffee : Bool;     // Q0.4
+    MotorGTea : Bool;       // Q0.5
+    MotorChange : Bool;     // Q0.6
+    LampReady : Bool;       // Q0.7
+    
+    // === 系统变量 ===
+    SysState : Int;
+    TotalAmount : Int;
+    SelectedProduct : Int;
+    ProductPrice : Int;
+    ChangeAmount : Int;
+    DisplayText : String[50];
+    WelcomeText : String[30];
+    StatusLED : Bool;
+    
+    // === 状态机定时器 ===
+    DispenseDelay : Ton;        // 出货后等待取货定时器
+    ReadyDelay : Ton;           // 返回待机定时器
+    DispenseWaitActive : Bool;
+    ReadyWaitActive : Bool;
+    
+    // === 本地库存 ===
+    LocalStocks : Array[1..6] of Int;
+    LocalLowStock : Array[1..6] of Bool;
+    LocalSoldOut : Array[1..6] of Bool;
+    
+    // === 取消按钮边沿 ===
+    CancelOld : Bool;
+    CancelRise : Bool;
+    ConfirmOld : Bool;
+    ConfirmRise : Bool;
+    
+    // === 套餐控制 ===
+    ComboBtnOld : Bool;
+    ComboBtnRise : Bool;
+    ComboMode : Bool;
+    ComboStep : Int;            // 套餐选择步骤
+    
+    // === 临时变量 ===
+    _i : Int;
+    DispenseOutputByte : Int;
+    _refundActive : Bool;
+    
+    // === 数据块引用 ===
+    dbGlobal : "DB_Global";
+    dbInventory : "DB_Inventory";
+    dbSales : "DB_Sales";
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 第一部分：输入读取与边沿检测
+    // ============================================================
+    
+    // 读取物理输入 (I0.0 - I1.4)
+    Btn1Yuan  := %I0.0;
+    Btn2Yuan  := %I0.1;
+    Btn5Yuan  := %I0.2;
+    Btn10Yuan := %I0.3;
+    BtnProd1  := %I0.4;
+    BtnProd2  := %I0.5;
+    BtnProd3  := %I0.6;
+    BtnProd4  := %I0.7;
+    BtnProd5  := %I1.0;
+    BtnProd6  := %I1.1;
+    BtnCancel := %I1.2;
+    BtnCombo  := %I1.3;
+    BtnConfirm:= %I1.4;
+    
+    // 取消按钮上升沿
+    CancelRise := BtnCancel AND NOT CancelOld;
+    CancelOld := BtnCancel;
+    
+    // 套餐按钮上升沿
+    ComboBtnRise := BtnCombo AND NOT ComboBtnOld;
+    ComboBtnOld := BtnCombo;
+    
+    // ============================================================
+    // 第二部分：调用功能块
+    // ============================================================
+    
+    // --- FB_Payment: 投币处理 ---
+    Payment(
+        iBtn1Yuan := Btn1Yuan,
+        iBtn2Yuan := Btn2Yuan,
+        iBtn5Yuan := Btn5Yuan,
+        iBtn10Yuan := Btn10Yuan,
+        iMaxAmount := 20,
+        iReset := CancelRise OR ReadyWaitActive
+    );
+    TotalAmount := Payment.oTotalAmount;
+    
+    // --- FB_ProductSelect: 商品选择 ---
+    ProductSelect(
+        iBtnProd1 := BtnProd1,
+        iBtnProd2 := BtnProd2,
+        iBtnProd3 := BtnProd3,
+        iBtnProd4 := BtnProd4,
+        iBtnProd5 := BtnProd5,
+        iBtnProd6 := BtnProd6,
+        iBtnConfirm := BtnConfirm,
+        iTotalAmount := TotalAmount,
+        iReset := CancelRise OR ReadyWaitActive,
+        iStock1 := LocalStocks[1],
+        iStock2 := LocalStocks[2],
+        iStock3 := LocalStocks[3],
+        iStock4 := LocalStocks[4],
+        iStock5 := LocalStocks[5],
+        iStock6 := LocalStocks[6],
+        iPrice1 := dbInventory.Products[1].Price,
+        iPrice2 := dbInventory.Products[2].Price,
+        iPrice3 := dbInventory.Products[3].Price,
+        iPrice4 := dbInventory.Products[4].Price,
+        iPrice5 := dbInventory.Products[5].Price,
+        iPrice6 := dbInventory.Products[6].Price,
+        iEnabled1 := NOT LocalSoldOut[1],
+        iEnabled2 := NOT LocalSoldOut[2],
+        iEnabled3 := NOT LocalSoldOut[3],
+        iEnabled4 := NOT LocalSoldOut[4],
+        iEnabled5 := NOT LocalSoldOut[5],
+        iEnabled6 := NOT LocalSoldOut[6]
+    );
+    SelectedProduct := ProductSelect.oSelectedProduct;
+    ProductPrice := ProductSelect.oProductPrice;
+    
+    // --- FB_Inventory: 库存管理 ---
+    // 初始化本地库存
+    FOR _i := 1 TO 6 DO
+        IF dbInventory.Products[_i].Stock <> LocalStocks[_i] THEN
+            // 从DB同步（管理员修改后）
+            // 否则使用本地值
+        END_IF;
+    END_FOR;
+    
+    InventoryMgr(
+        iDispenseIndex := SelectedProduct,
+        iDispenseDone := ProductSelect.oDispensingDone,
+        iRefund := _refundActive,
+        iRefundProduct := SelectedProduct,
+        iRestockIndex := 0,
+        iRestockAll := FALSE,
+        iReset := FALSE
+    );
+    
+    // 同步库存到本地
+    FOR _i := 1 TO 6 DO
+        LocalStocks[_i] := InventoryMgr.ioStocks[_i];
+        LocalLowStock[_i] := InventoryMgr.ioLowStock[_i];
+        LocalSoldOut[_i] := InventoryMgr.ioSoldOut[_i];
+    END_FOR;
+    
+    // 同步回DB（保持断电保持）
+    FOR _i := 1 TO 6 DO
+        dbInventory.Products[_i].Stock := LocalStocks[_i];
+        dbInventory.Products[_i].LowStock := LocalLowStock[_i];
+        dbInventory.Products[_i].SoldOut := LocalSoldOut[_i];
+    END_FOR;
+    
+    // --- FB_Change: 找零处理 ---
+    ChangeCalc(
+        iTrigger := ProductSelect.oDispensingDone,
+        iRefund := CancelRise AND (TotalAmount > 0),
+        iAmount := ProductSelect.oChangeAmount,
+        iReset := ReadyWaitActive
+    );
+    ChangeAmount := ChangeCalc.oTotalChangeOut;
+    
+    // --- FB_Alarm: 报警管理 ---
+    AlarmMgr(
+        iTotalSoldOut := InventoryMgr.oTotalSoldOut,
+        iTotalLowStock := InventoryMgr.oTotalLowStock,
+        iChangeBoxEmpty := ChangeCalc.oChangeBoxEmpty,
+        iCommError := FALSE,
+        iSystemError := FALSE,
+        iReset := FALSE,
+        iAcknowledge := FALSE
+    );
+    
+    // ============================================================
+    // 第三部分：状态机
+    // ============================================================
+    
+    // 状态0: 待机
+    IF SysState = 0 THEN
+        IF Payment.oCoinInserted THEN
+            SysState := 1;  // 进入投币中
+        END_IF;
+    END_IF;
+    
+    // 状态1: 投币中 / 选择中
+    IF SysState = 1 THEN
+        IF Payment.oCoinInserted THEN
+            // 保持投币中状态
+        END_IF;
+        
+        IF ProductSelect.oSelectionValid THEN
+            SysState := 2;  // 进入选择确认
+        END_IF;
+        
+        IF CancelRise AND TotalAmount > 0 THEN
+            SysState := 7;  // 退款
+            _refundActive := TRUE;
+        END_IF;
+    END_IF;
+    
+    // 状态2: 选择确认
+    IF SysState = 2 THEN
+        IF ProductSelect.oInsufficientFund THEN
+            // 余额不足，保持状态2等待投币或取消
+            IF Payment.oCoinInserted THEN
+                // 投币后金额可能足够
+            END_IF;
+        END_IF;
+        
+        IF ProductSelect.oDispensing THEN
+            SysState := 3;  // 出货中
+        END_IF;
+        
+        IF ProductSelect.oSoldOut THEN
+            SysState := 1;  // 返回投币状态
+        END_IF;
+        
+        IF CancelRise THEN
+            SysState := 7;  // 退款
+            _refundActive := TRUE;
+        END_IF;
+    END_IF;
+    
+    // 状态3: 出货中
+    IF SysState = 3 THEN
+        IF ProductSelect.oDispensingDone THEN
+            SysState := 4;  // 出货完成，等待取货
+            DispenseWaitActive := TRUE;
+        END_IF;
+    END_IF;
+    
+    // 状态4: 等待取货 (3秒)
+    DispenseDelay(IN := DispenseWaitActive, PT := T#3S);
+    IF SysState = 4 THEN
+        IF DispenseDelay.Q THEN
+            DispenseWaitActive := FALSE;
+            DispenseDelay(IN := FALSE);
+            
+            // 计算找零
+            IF TotalAmount > ProductPrice THEN
+                SysState := 5;  // 找零中
+            ELSE
+                SysState := 6;  // 无找零，直接完成
+                ReadyWaitActive := TRUE;
+            END_IF;
+            
+            // 记录销售
+            IF dbSales.CurrentIndex <= 1000 THEN
+                dbSales.Transactions[dbSales.CurrentIndex].ProductIndex := SelectedProduct;
+                dbSales.Transactions[dbSales.CurrentIndex].Price := ProductPrice;
+                dbSales.Transactions[dbSales.CurrentIndex].PaidAmount := TotalAmount;
+                dbSales.Transactions[dbSales.CurrentIndex].ChangeGiven := TotalAmount - ProductPrice;
+                dbSales.Transactions[dbSales.CurrentIndex].TransType := 1;
+                dbSales.CurrentIndex := dbSales.CurrentIndex + 1;
+            ELSE
+                dbSales.CurrentIndex := 1;  // 循环覆盖
+            END_IF;
+            
+            // 更新销售统计
+            IF SelectedProduct >= 1 AND SelectedProduct <= 6 THEN
+                dbSales.ProductSales[SelectedProduct].QuantitySold := 
+                    dbSales.ProductSales[SelectedProduct].QuantitySold + 1;
+                dbSales.ProductSales[SelectedProduct].Revenue := 
+                    dbSales.ProductSales[SelectedProduct].Revenue + ProductPrice;
+            END_IF;
+            
+            dbSales.TotalTransactions := dbSales.TotalTransactions + 1;
+            dbSales.TotalRevenue := dbSales.TotalRevenue + ProductPrice;
+        END_IF;
+    END_IF;
+    
+    // 状态5: 找零中
+    IF SysState = 5 THEN
+        IF ChangeCalc.oChangeDone THEN
+            SysState := 6;  // 找零完成
+            ReadyWaitActive := TRUE;
+        END_IF;
+    END_IF;
+    
+    // 状态6: 完成，返回待机 (2秒)
+    ReadyDelay(IN := ReadyWaitActive, PT := T#2S);
+    IF SysState = 6 THEN
+        IF ReadyDelay.Q THEN
+            ReadyWaitActive := FALSE;
+            ReadyDelay(IN := FALSE);
+            SysState := 0;  // 返回待机
+            TotalAmount := 0;
+            SelectedProduct := 0;
+            _refundActive := FALSE;
+        END_IF;
+    END_IF;
+    
+    // 状态7: 退款
+    IF SysState = 7 THEN
+        IF ChangeCalc.oRefundDone OR ChangeCalc.oChangeDone THEN
+            SysState := 8;  // 退款完成
+            ReadyWaitActive := TRUE;
+        END_IF;
+    END_IF;
+    
+    // 状态8: 退款完成，返回待机
+    // 复用 ReadyDelay
+    IF SysState = 8 THEN
+        IF ReadyDelay.Q THEN
+            ReadyWaitActive := FALSE;
+            ReadyDelay(IN := FALSE);
+            SysState := 0;
+            TotalAmount := 0;
+            SelectedProduct := 0;
+            _refundActive := FALSE;
+        END_IF;
+    END_IF;
+    
+    // 状态99: 故障
+    IF AlarmMgr.oAlarmActive AND SysState <> 99 THEN
+        // 可以在任何非交易状态下进入报警
+        IF SysState = 0 THEN
+            SysState := 99;
+        END_IF;
+    END_IF;
+    
+    // ============================================================
+    // 第四部分：显示控制
+    // ============================================================
+    
+    "FC_Display"(
+        iSysState := SysState,
+        iTotalAmount := TotalAmount,
+        iSelectedProduct := SelectedProduct,
+        iProductPrice := ProductPrice,
+        iDispensing := ProductSelect.oDispensing,
+        iDispensingDone := ProductSelect.oDispensingDone,
+        iChanging := ChangeCalc.oChanging,
+        iChangeDone := ChangeCalc.oChangeDone,
+        iRefundDone := ChangeCalc.oRefundDone,
+        iInsufficientFund := ProductSelect.oInsufficientFund,
+        iSoldOut := ProductSelect.oSoldOut,
+        iAlarmActive := AlarmMgr.oAlarmActive,
+        iAlarmText := AlarmMgr.oAlarmText
+    );
+    
+    // ============================================================
+    // 第五部分：输出驱动
+    // ============================================================
+    
+    // 出货电机输出
+    DispenseOutputByte := ProductSelect.oDispenseOutput;
+    
+    %Q0.0 := (DispenseOutputByte AND 16#01) <> 0;   // 可乐电机
+    %Q0.1 := (DispenseOutputByte AND 16#02) <> 0;   // 果汁电机
+    %Q0.2 := (DispenseOutputByte AND 16#04) <> 0;   // 奶茶电机
+    %Q0.3 := (DispenseOutputByte AND 16#08) <> 0;   // 矿泉水电机
+    %Q0.4 := (DispenseOutputByte AND 16#10) <> 0;   // 咖啡电机
+    %Q0.5 := (DispenseOutputByte AND 16#20) <> 0;   // 茶电机
+    %Q0.6 := ChangeCalc.oChangeMotor;                // 找零电机
+    %Q0.7 := (SysState = 0);                         // 就绪灯
+    
+    // 同步到DB
+    dbGlobal.SysState := SysState;
+    dbGlobal.TotalAmount := TotalAmount;
+    dbGlobal.SelectedProduct := SelectedProduct;
+    dbGlobal.TransactionCount := dbSales.TotalTransactions;
+
+END_ORGANIZATION_BLOCK

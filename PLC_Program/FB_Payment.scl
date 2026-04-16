@@ -1,0 +1,134 @@
+// ============================================================
+// FB_Payment.scl - 投币与金额管理功能块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：处理4种面值投币，实时累计金额，检测超限
+
+FUNCTION_BLOCK "FB_Payment"
+
+VAR_INPUT
+    iBtn1Yuan : Bool;           // 1元投币按钮
+    iBtn2Yuan : Bool;           // 2元投币按钮
+    iBtn5Yuan : Bool;           // 5元投币按钮
+    iBtn10Yuan : Bool;          // 10元投币按钮
+    iMaxAmount : Int;           // 最大投币限额
+    iReset : Bool;              // 复位信号
+END_VAR
+
+VAR_OUTPUT
+    oTotalAmount : Int;         // 累计金额
+    oCoinInserted : Bool;       // 投币事件（单周期）
+    oCoinValue : Int;           // 本次投币面值
+    oAmountFull : Bool;         // 金额已满标志
+    oAnyCoin : Bool;            // 有投币信号
+END_VAR
+
+VAR
+    // 内部边沿检测
+    _btn1Old : Bool;
+    _btn2Old : Bool;
+    _btn5Old : Bool;
+    _btn10Old : Bool;
+    _btn1Rise : Bool;
+    _btn2Rise : Bool;
+    _btn5Rise : Bool;
+    _btn10Rise : Bool;
+    _totalAmount : Int;
+    _pulseTimer : Ton;
+    _coinPulseActive : Bool;
+END_VAR
+
+VAR_TEMP
+    _anyCoin : Bool;
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 1. 按钮上升沿检测
+    // ============================================================
+    _btn1Rise := iBtn1Yuan AND NOT _btn1Old;
+    _btn2Rise := iBtn2Yuan AND NOT _btn2Old;
+    _btn5Rise := iBtn5Yuan AND NOT _btn5Old;
+    _btn10Rise := iBtn10Yuan AND NOT _btn10Old;
+    
+    _btn1Old := iBtn1Yuan;
+    _btn2Old := iBtn2Yuan;
+    _btn5Old := iBtn5Yuan;
+    _btn10Old := iBtn10Yuan;
+    
+    // ============================================================
+    // 2. 复位处理
+    // ============================================================
+    IF iReset THEN
+        _totalAmount := 0;
+        oCoinInserted := FALSE;
+        oCoinValue := 0;
+        oAmountFull := FALSE;
+        oAnyCoin := FALSE;
+        _coinPulseActive := FALSE;
+        RETURN;
+    END_IF;
+    
+    // ============================================================
+    // 3. 投币处理
+    // ============================================================
+    _anyCoin := FALSE;
+    oCoinInserted := FALSE;
+    
+    // 1元投币
+    IF _btn1Rise AND (_totalAmount + 1 <= iMaxAmount) THEN
+        _totalAmount := _totalAmount + 1;
+        oCoinValue := 1;
+        oCoinInserted := TRUE;
+        _anyCoin := TRUE;
+        _coinPulseActive := TRUE;
+    END_IF;
+    
+    // 2元投币
+    IF _btn2Rise AND (_totalAmount + 2 <= iMaxAmount) THEN
+        _totalAmount := _totalAmount + 2;
+        oCoinValue := 2;
+        oCoinInserted := TRUE;
+        _anyCoin := TRUE;
+        _coinPulseActive := TRUE;
+    END_IF;
+    
+    // 5元投币
+    IF _btn5Rise AND (_totalAmount + 5 <= iMaxAmount) THEN
+        _totalAmount := _totalAmount + 5;
+        oCoinValue := 5;
+        oCoinInserted := TRUE;
+        _anyCoin := TRUE;
+        _coinPulseActive := TRUE;
+    END_IF;
+    
+    // 10元投币
+    IF _btn10Rise AND (_totalAmount + 10 <= iMaxAmount) THEN
+        _totalAmount := _totalAmount + 10;
+        oCoinValue := 10;
+        oCoinInserted := TRUE;
+        _anyCoin := TRUE;
+        _coinPulseActive := TRUE;
+    END_IF;
+    
+    // ============================================================
+    // 4. 输出更新
+    // ============================================================
+    oTotalAmount := _totalAmount;
+    oAnyCoin := _anyCoin;
+    
+    // 金额已满检测
+    IF _totalAmount >= iMaxAmount THEN
+        oAmountFull := TRUE;
+    ELSE
+        oAmountFull := FALSE;
+    END_IF;
+    
+    // 投币脉冲信号（200ms后自动清除）
+    _pulseTimer(IN := _coinPulseActive, PT := T#200MS);
+    IF _pulseTimer.Q THEN
+        _coinPulseActive := FALSE;
+        _pulseTimer(IN := FALSE);
+    END_IF;
+
+END_FUNCTION_BLOCK

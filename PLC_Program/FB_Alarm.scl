@@ -1,0 +1,136 @@
+// ============================================================
+// FB_Alarm.scl - 报警管理功能块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 功能：缺货报警、找零钱箱空报警、通信故障报警
+
+FUNCTION_BLOCK "FB_Alarm"
+
+VAR_INPUT
+    iTotalSoldOut : Int;        // 售罄商品数
+    iTotalLowStock : Int;       // 低库存商品数
+    iChangeBoxEmpty : Bool;     // 找零钱箱空
+    iCommError : Bool;          // 通信故障
+    iSystemError : Bool;        // 系统错误
+    iReset : Bool;              // 复位
+    iAcknowledge : Bool;        // 确认报警
+END_VAR
+
+VAR_OUTPUT
+    oAlarmActive : Bool;        // 报警激活
+    oSoldOutAlarm : Bool;       // 缺货报警
+    oLowStockAlarm : Bool;      // 低库存预警
+    oChangeBoxAlarm : Bool;     // 找零钱箱空报警
+    oCommAlarm : Bool;          // 通信故障报警
+    oSystemAlarm : Bool;        // 系统故障报警
+    oAlarmCode : Int;           // 报警代码
+    oAlarmText : String[50];    // 报警文字
+    oAlarmCount : Int;          // 当前活跃报警数
+END_VAR
+
+VAR
+    _alarmActive : Bool;
+    _ackOld : Bool;
+    _ackRise : Bool;
+    _flashTimer : Ton;
+    _flashState : Bool;
+    _blinkCounter : Int;
+END_VAR
+
+BEGIN
+    // ============================================================
+    // 1. 边沿检测
+    // ============================================================
+    _ackRise := iAcknowledge AND NOT _ackOld;
+    _ackOld := iAcknowledge;
+    
+    // ============================================================
+    // 2. 复位
+    // ============================================================
+    IF iReset THEN
+        oAlarmActive := FALSE;
+        oSoldOutAlarm := FALSE;
+        oLowStockAlarm := FALSE;
+        oChangeBoxAlarm := FALSE;
+        oCommAlarm := FALSE;
+        oSystemAlarm := FALSE;
+        oAlarmCode := 0;
+        oAlarmText := '';
+        oAlarmCount := 0;
+    END_IF;
+    
+    // ============================================================
+    // 3. 闪烁定时器 (1Hz)
+    // ============================================================
+    _flashTimer(IN := NOT _flashTimer.Q, PT := T#500MS);
+    _flashState := _flashTimer.Q;
+    
+    // ============================================================
+    // 4. 报警检测与优先级
+    // ============================================================
+    oAlarmCount := 0;
+    
+    // 优先级1: 系统故障
+    IF iSystemError THEN
+        oSystemAlarm := TRUE;
+        oAlarmCode := 1;
+        oAlarmText := '系统故障';
+        oAlarmCount := oAlarmCount + 1;
+    ELSE
+        oSystemAlarm := FALSE;
+    END_IF;
+    
+    // 优先级2: 通信故障
+    IF iCommError THEN
+        oCommAlarm := TRUE;
+        oAlarmCode := 2;
+        oAlarmText := '通信故障';
+        oAlarmCount := oAlarmCount + 1;
+    ELSE
+        oCommAlarm := FALSE;
+    END_IF;
+    
+    // 优先级3: 找零钱箱空
+    IF iChangeBoxEmpty THEN
+        oChangeBoxAlarm := TRUE;
+        oAlarmCode := 3;
+        oAlarmText := '找零钱箱空';
+        oAlarmCount := oAlarmCount + 1;
+    ELSE
+        oChangeBoxAlarm := FALSE;
+    END_IF;
+    
+    // 优先级4: 缺货
+    IF iTotalSoldOut > 0 THEN
+        oSoldOutAlarm := TRUE;
+        oAlarmCode := 4;
+        oAlarmText := '商品售罄';
+        oAlarmCount := oAlarmCount + 1;
+    ELSE
+        oSoldOutAlarm := FALSE;
+    END_IF;
+    
+    // 优先级5: 低库存预警
+    IF iTotalLowStock > 0 THEN
+        oLowStockAlarm := TRUE;
+        IF oAlarmCode = 0 THEN
+            oAlarmCode := 5;
+            oAlarmText := '库存不足';
+        END_IF;
+        oAlarmCount := oAlarmCount + 1;
+    ELSE
+        oLowStockAlarm := FALSE;
+    END_IF;
+    
+    // 总报警标志
+    _alarmActive := oSystemAlarm OR oCommAlarm OR oChangeBoxAlarm 
+                    OR oSoldOutAlarm OR oLowStockAlarm;
+    oAlarmActive := _alarmActive;
+    
+    // 默认无报警
+    IF NOT _alarmActive THEN
+        oAlarmCode := 0;
+        oAlarmText := '';
+    END_IF;
+
+END_FUNCTION_BLOCK

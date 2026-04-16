@@ -1,0 +1,92 @@
+// ============================================================
+// DB_Global.scl - 全局数据块
+// 自动售货机控制系统 - TIA Portal V18
+// ============================================================
+// 全局状态与控制变量
+
+DATA_BLOCK "DB_Global"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 1.0
+
+STRUCT
+    // === 系统状态 ===
+    SysState : Int;              // 系统状态: 0=待机 1=投币中 2=选择中 3=出货中 4=找零中 5=故障
+    SysStateText : String[20];   // 状态文字描述
+    SysRunning : Bool;           // 系统运行标志
+    SysError : Bool;             // 系统错误标志
+    ErrorCode : Int;             // 错误代码
+    
+    // === 投币控制 ===
+    CoinInserted : Bool;         // 投币触发信号
+    CoinValue : Int;             // 当前投币面值
+    TotalAmount : Int;           // 累计投币金额 (分/角为单位, 此处用元)
+    MaxAmount : Int := 20;       // 最大投币金额限制
+    CoinPending : Bool;          // 待处理投币
+    
+    // === 交易控制 ===
+    SelectedProduct : Int;       // 当前选择商品编号 (1-6)
+    ProductPrice : Int;          // 所选商品价格
+    TransactionActive : Bool;    // 交易进行中
+    DispensingActive : Bool;     // 出货中
+    DispensingTimer : Time;      // 出货定时器设定 (2秒)
+    DispensingDone : Bool;       // 出货完成
+    ChangeAmount : Int;          // 应找零金额
+    ChangeDone : Bool;           // 找零完成
+    
+    // === 套餐控制 ===
+    ComboSelected : Bool;        // 套餐选择模式
+    ComboItem1 : Bool;           // 套餐商品1已选 (可乐)
+    ComboItem2 : Bool;           // 套餐商品2已选 (薯片)
+    ComboOriginalPrice : Int := 8;  // 套餐原价
+    ComboDiscountPrice : Int := 7;  // 套餐优惠价
+    
+    // === 按钮边沿检测 ===
+    BtnCoin1Rise : Bool;         // 1元按钮上升沿
+    BtnCoin2Rise : Bool;         // 2元按钮上升沿
+    BtnCoin5Rise : Bool;         // 5元按钮上升沿
+    BtnCoin10Rise : Bool;        // 10元按钮上升沿
+    BtnProd1Rise : Bool;         // 商品1按钮上升沿
+    BtnProd2Rise : Bool;         // 商品2按钮上升沿
+    BtnProd3Rise : Bool;         // 商品3按钮上升沿
+    BtnProd4Rise : Bool;         // 商品4按钮上升沿
+    BtnProd5Rise : Bool;         // 商品5按钮上升沿
+    BtnProd6Rise : Bool;         // 商品6按钮上升沿
+    BtnCancelRise : Bool;        // 取消按钮上升沿
+    BtnComboRise : Bool;         // 套餐按钮上升沿
+    BtnConfirmRise : Bool;       // 确认按钮上升沿
+    
+    // === 按钮边沿检测中间变量 ===
+    BtnCoin1Old : Bool;
+    BtnCoin2Old : Bool;
+    BtnCoin5Old : Bool;
+    BtnCoin10Old : Bool;
+    BtnProd1Old : Bool;
+    BtnProd2Old : Bool;
+    BtnProd3Old : Bool;
+    BtnProd4Old : Bool;
+    BtnProd5Old : Bool;
+    BtnProd6Old : Bool;
+    BtnCancelOld : Bool;
+    BtnComboOld : Bool;
+    BtnConfirmOld : Bool;
+    
+    // === 时间戳 ===
+    CurrentTime : DTL;           // 当前时间
+    TransactionCount : Int;      // 今日交易计数
+    
+    // === 找零钱箱 ===
+    ChangeBoxAmount : Int := 50; // 找零钱箱余额
+    ChangeBoxEmpty : Bool;       // 找零钱箱空标志
+    
+END_STRUCT;
+
+BEGIN
+    SysState := 0;
+    SysStateText := '欢迎光临';
+    SysRunning := TRUE;
+    MaxAmount := 20;
+    DispensingTimer := T#2S;
+    ComboOriginalPrice := 8;
+    ComboDiscountPrice := 7;
+    ChangeBoxAmount := 50;
+END_DATA_BLOCK
